@@ -1,0 +1,112 @@
+// =====================================================================
+// Bank Loan Dashboard | DAX measures
+// Table: FactBankLoan   Date table: DimDate (marked as date table)
+// Relationship: FactBankLoan[issue_date] -> DimDate[Date] (many-to-one, active)
+// Display folders are shown as comments; set them in Model view.
+// Good Loan = Fully Paid + Current ; Bad Loan = Charged Off.
+// int_rate and dti are stored as fractions (0.1527 = 15.27%).
+// =====================================================================
+
+// ---------- 01_KPIs ----------
+Total Loan Applications = COUNTROWS ( FactBankLoan )
+Total Funded Amount     = SUM ( FactBankLoan[loan_amount] )
+Total Amount Received   = SUM ( FactBankLoan[total_payment] )
+Avg Interest Rate       = AVERAGE ( FactBankLoan[int_rate] )      // format 0.00%
+Avg DTI                 = AVERAGE ( FactBankLoan[dti] )           // format 0.00%
+Repayment Ratio         = DIVIDE ( [Total Amount Received], [Total Funded Amount] )   // format 0.00%
+Avg Loan Amount         = DIVIDE ( [Total Funded Amount], [Total Loan Applications] )
+
+// ---------- 02_Time_Intelligence ----------
+// Month-to-date: current period in context (use the latest month, e.g. Dec 2021)
+MTD Loan Applications = TOTALMTD ( [Total Loan Applications], DimDate[Date] )
+MTD Funded Amount     = TOTALMTD ( [Total Funded Amount],     DimDate[Date] )
+MTD Amount Received   = TOTALMTD ( [Total Amount Received],   DimDate[Date] )
+MTD Avg Interest Rate = CALCULATE ( [Avg Interest Rate], DATESMTD ( DimDate[Date] ) )
+MTD Avg DTI           = CALCULATE ( [Avg DTI],           DATESMTD ( DimDate[Date] ) )
+
+// Previous month-to-date
+PMTD Loan Applications =
+CALCULATE ( [MTD Loan Applications], DATEADD ( DimDate[Date], -1, MONTH ) )
+PMTD Funded Amount =
+CALCULATE ( [MTD Funded Amount], DATEADD ( DimDate[Date], -1, MONTH ) )
+PMTD Amount Received =
+CALCULATE ( [MTD Amount Received], DATEADD ( DimDate[Date], -1, MONTH ) )
+PMTD Avg Interest Rate =
+CALCULATE ( [MTD Avg Interest Rate], DATEADD ( DimDate[Date], -1, MONTH ) )
+PMTD Avg DTI =
+CALCULATE ( [MTD Avg DTI], DATEADD ( DimDate[Date], -1, MONTH ) )
+
+// Month-over-month change (ratio, format +0.00%;-0.00%)
+MoM Loan Applications = DIVIDE ( [MTD Loan Applications] - [PMTD Loan Applications], [PMTD Loan Applications] )
+MoM Funded Amount     = DIVIDE ( [MTD Funded Amount]     - [PMTD Funded Amount],     [PMTD Funded Amount] )
+MoM Amount Received   = DIVIDE ( [MTD Amount Received]   - [PMTD Amount Received],   [PMTD Amount Received] )
+MoM Avg Interest Rate = DIVIDE ( [MTD Avg Interest Rate] - [PMTD Avg Interest Rate], [PMTD Avg Interest Rate] )
+MoM Avg DTI           = DIVIDE ( [MTD Avg DTI]           - [PMTD Avg DTI],           [PMTD Avg DTI] )
+
+// Optional: alternate date role (e.g. last payment date) via an inactive relationship
+Amount Received by Payment Date =
+CALCULATE ( [Total Amount Received],
+            USERELATIONSHIP ( FactBankLoan[last_payment_date], DimDate[Date] ) )
+
+// Arrow for KPI cards
+MoM Arrow = IF ( [MoM Funded Amount] >= 0, "▲", "▼" )
+
+// ---------- 03_Good_Bad_Loans ----------
+Good Loan Applications =
+CALCULATE ( [Total Loan Applications], FactBankLoan[loan_status] IN { "Fully Paid", "Current" } )
+Good Loan % = DIVIDE ( [Good Loan Applications], [Total Loan Applications] )
+Good Loan Funded Amount =
+CALCULATE ( [Total Funded Amount], FactBankLoan[loan_status] IN { "Fully Paid", "Current" } )
+Good Loan Amount Received =
+CALCULATE ( [Total Amount Received], FactBankLoan[loan_status] IN { "Fully Paid", "Current" } )
+
+Bad Loan Applications =
+CALCULATE ( [Total Loan Applications], FactBankLoan[loan_status] = "Charged Off" )
+Bad Loan % = DIVIDE ( [Bad Loan Applications], [Total Loan Applications] )
+Bad Loan Funded Amount =
+CALCULATE ( [Total Funded Amount], FactBankLoan[loan_status] = "Charged Off" )
+Bad Loan Amount Received =
+CALCULATE ( [Total Amount Received], FactBankLoan[loan_status] = "Charged Off" )
+Net Capital Loss = [Bad Loan Amount Received] - [Bad Loan Funded Amount]     // negative = loss
+
+// ---------- 04_Risk_Analysis ----------
+Charge-Off Rate = [Bad Loan %]
+Net Loss Amount = - [Net Capital Loss]                                         // positive number
+Share of Net Loss =
+DIVIDE ( [Net Loss Amount], CALCULATE ( [Net Loss Amount], ALLSELECTED () ) )
+Share of Charge-Offs =
+DIVIDE ( [Bad Loan Applications], CALCULATE ( [Bad Loan Applications], ALLSELECTED () ) )
+Risk Index =
+DIVIDE ( [Charge-Off Rate], CALCULATE ( [Charge-Off Rate], ALL ( FactBankLoan ) ) )   // 1.0 = portfolio average
+Recovery Rate on Bad Loans = DIVIDE ( [Bad Loan Amount Received], [Bad Loan Funded Amount] )
+
+// Hide noisy small segments: shows rate only when the segment has >= 400 loans
+Charge-Off Rate (Min Volume) =
+IF ( [Total Loan Applications] >= 400, [Charge-Off Rate] )
+
+// Conditional-format helper for status badges (return hex)
+Status Color =
+SWITCH ( SELECTEDVALUE ( FactBankLoan[loan_status] ),
+         "Fully Paid",  "#10b981",
+         "Current",     "#f59e0b",
+         "Charged Off", "#ef4444",
+         "#64748b" )
+
+// ---------- Calculated tables (Modeling > New table) ----------
+DimDate =
+ADDCOLUMNS (
+    CALENDAR ( DATE ( 2021, 1, 1 ), DATE ( 2021, 12, 31 ) ),
+    "Year",       YEAR ( [Date] ),
+    "Month No",   MONTH ( [Date] ),
+    "Month",      FORMAT ( [Date], "mmm" ),
+    "Month Year", FORMAT ( [Date], "mmm yyyy" ),
+    "Quarter",    "Q" & QUARTER ( [Date] )
+)
+// Then: Month sort by column = Month No ; Mark as date table on [Date].
+
+DimGrade =
+DATATABLE ( "grade", STRING, "Grade Order", INTEGER,
+    { {"A",1},{"B",2},{"C",3},{"D",4},{"E",5},{"F",6},{"G",7} } )
+
+DimPurpose = DISTINCT ( SELECTCOLUMNS ( FactBankLoan, "purpose", FactBankLoan[purpose] ) )
+DimState   = DISTINCT ( SELECTCOLUMNS ( FactBankLoan, "address_state", FactBankLoan[address_state] ) )

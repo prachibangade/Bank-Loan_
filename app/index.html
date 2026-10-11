@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank Loan Dashboard</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">◈</span>
+    <div><h1>Bank Loan Dashboard</h1><p>2021 portfolio · <span id="hdrCount">–</span> applications</p></div></div>
+  <nav class="tabs" role="tablist" aria-label="Report pages">
+    <button role="tab" aria-selected="true"  data-tab="summary">Summary</button>
+    <button role="tab" aria-selected="false" data-tab="overview">Overview</button>
+    <button role="tab" aria-selected="false" data-tab="details">Details</button>
+    <button role="tab" aria-selected="false" data-tab="sql">SQL Runner</button>
+  </nav>
+</header>
+
+<main>
+<!-- ============ SUMMARY ============ -->
+<section id="tab-summary" class="page" role="tabpanel">
+  <div class="toolbar">
+    <label>Month <select id="monthSel"></select></label>
+    <span class="hint" id="monthHint"></span>
+  </div>
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Portfolio health <small>all 12 months</small></h2>
+  <div class="split">
+    <div id="goodCard"></div>
+    <div id="badCard"></div>
+  </div>
+
+  <h2>Loan status <small>all 12 months</small></h2>
+  <div class="card"><div class="tablewrap"><table id="statusTable"></table></div></div>
+</section>
+
+<!-- ============ OVERVIEW ============ -->
+<section id="tab-overview" class="page" role="tabpanel" hidden>
+  <div class="grid">
+    <div class="card span2">
+      <div class="chead"><h3>Monthly trend</h3>
+        <select id="trendMetric"><option value="money">Funded &amp; received ($M)</option><option value="apps">Applications</option><option value="rate">Charge-off rate (%)</option></select></div>
+      <div id="trend" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="chead"><h3>Charge-off rate by grade</h3></div>
+      <div id="gradeChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="chead"><h3>Term</h3></div>
+      <div id="termChart" class="chart donutwrap"></div>
+    </div>
+    <div class="card">
+      <div class="chead"><h3>Loan purpose</h3>
+        <select id="purposeMetric"><option value="rate">Charge-off rate</option><option value="loss">Share of net loss</option><option value="loans">Applications</option></select></div>
+      <div id="purposeChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="chead"><h3>State (top 15)</h3>
+        <span class="inline"><select id="stateMetric"><option value="rate">Charge-off rate</option><option value="loss">Net loss ($)</option><option value="loans">Applications</option></select>
+        <label class="mini">min loans <input id="stateMin" type="number" value="400" min="0" step="50"></label></span></div>
+      <div id="stateChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="chead"><h3>Home ownership</h3></div>
+      <div id="homeChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <div class="chead"><h3>Verification status</h3></div>
+      <div id="verifChart" class="chart"></div>
+    </div>
+  </div>
+  <p class="foot">Charge-off rate = charged-off loans ÷ loans in the segment. Dashed line = portfolio average (<span id="portAvg"></span>).</p>
+</section>
+
+<!-- ============ DETAILS ============ -->
+<section id="tab-details" class="page" role="tabpanel" hidden>
+  <div class="filters" id="filters"></div>
+  <div class="toolbar">
+    <span id="detCount" class="hint"></span>
+    <span class="spacer"></span>
+    <button id="exportBtn" class="btn">Export CSV</button>
+  </div>
+  <div class="card"><div class="tablewrap"><table id="detTable"></table></div></div>
+  <div class="pager"><button class="btn" id="prevBtn">‹ Prev</button><span id="pageInfo"></span><button class="btn" id="nextBtn">Next ›</button></div>
+</section>
+
+<!-- ============ SQL ============ -->
+<section id="tab-sql" class="page" role="tabpanel" hidden>
+  <div class="toolbar">
+    <label>Query <select id="presetSel"></select></label>
+    <button class="btn primary" id="runBtn">Run ▶</button>
+    <span class="hint" id="sqlStatus">Loads the SQL engine on first use (needs internet).</span>
+  </div>
+  <textarea id="sqlBox" spellcheck="false" aria-label="SQL query"></textarea>
+  <div class="hint">Table <code>loans</code> and view <code>vw_loans</code> (adds issue_month, issue_year, loan_class). Ctrl/⌘+Enter runs. Read-only copy in your browser.</div>
+  <div class="card"><div class="tablewrap"><table id="sqlResult"></table></div></div>
+</section>
+</main>
+<div id="tip" class="tip" role="status" hidden></div>
+<script src="data.js"></script>
+<script src="queries.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
